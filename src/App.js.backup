@@ -1,0 +1,420 @@
+import React, { useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { Badge } from './components/ui/badge';
+import { Button } from './components/ui/button';
+import { Card, CardContent } from './components/ui/card';
+import { Input } from './components/ui/input';
+import { Progress } from './components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
+import {
+  Plus,
+  Trophy,
+  Flame,
+  Target,
+  Briefcase,
+  User,
+  Heart,
+  BookOpen,
+  Filter,
+  SortAsc,
+  Star,
+  Zap,
+  CheckCircle2,
+  Circle,
+  MoreHorizontal,
+} from 'lucide-react';
+
+// Task component
+function Task({ task, completeTask, deleteTask, editTask }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
+  
+  const taskCompletedClass = task.completed ? 'completed' : '';
+  const priorityClass = `priority-${task.priority}`;
+  const categoryClass = `category-${task.category}`;
+  
+  const isOverdue = isPast(parseISO(task.deadline)) && !task.completed;
+  const isDueToday = isToday(parseISO(task.deadline));
+  
+  const handleEdit = () => {
+    if (isEditing) {
+      editTask(task.id, { title: editTitle });
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const getPriorityIcon = () => {
+    switch(task.priority) {
+      case 'high': return '🔴';
+      case 'medium': return '🟡';
+      case 'low': return '🟢';
+      default: return '⚪';
+    }
+  };
+
+  const getCategoryIcon = () => {
+    switch(task.category) {
+      case 'work': return '💼';
+      case 'personal': return '👤';
+      case 'health': return '🏥';
+      case 'learning': return '📚';
+      default: return '📝';
+    }
+  };
+
+  return (
+    <div className={`task-item ${taskCompletedClass} ${priorityClass} ${categoryClass} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}`}>
+      <div className="task-content">
+        <div className="task-header">
+          <span className="task-icons">
+            {getCategoryIcon()}
+            {getPriorityIcon()}
+          </span>
+          {isEditing ? (
+            <input 
+              className="edit-input"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleEdit()}
+            />
+          ) : (
+            <div className="task-title">{task.title}</div>
+          )}
+        </div>
+        <div className="task-meta">
+          <span className="task-deadline">
+            {isOverdue ? '⚠️ Overdue: ' : isDueToday ? '📅 Due Today: ' : 'Due: '}
+            {format(parseISO(task.deadline), 'MMM d')}
+          </span>
+          <span className="task-category">{task.category}</span>
+        </div>
+      </div>
+      <div className="task-actions">
+        {!task.completed && (
+          <>
+            <button className="edit-btn task-btn" onClick={handleEdit}>
+              {isEditing ? '✓' : '✏️'}
+            </button>
+            <button className="complete-btn task-btn" onClick={() => completeTask(task.id)}>
+              ✓
+            </button>
+          </>
+        )}
+        <button className="delete-btn task-btn" onClick={() => deleteTask(task.id)}>
+          🗑️
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [tasks, setTasks] = useState([]);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [category, setCategory] = useState('personal');
+  const [priority, setPriority] = useState('medium');
+  const [level, setLevel] = useState(1);
+  const [xp, setXp] = useState(0);
+  const [totalXp, setTotalXp] = useState(0);
+  const [filter, setFilter] = useState('all');
+  const [achievements, setAchievements] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const [dailyGoal, setDailyGoal] = useState(5);
+  const [showStats, setShowStats] = useState(false);
+
+  useEffect(() => {
+    // Load data from local storage
+    const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    const storedLevel = parseInt(localStorage.getItem('level')) || 1;
+    const storedXp = parseInt(localStorage.getItem('xp')) || 0;
+    const storedTotalXp = parseInt(localStorage.getItem('totalXp')) || 0;
+    const storedStreak = parseInt(localStorage.getItem('streak')) || 0;
+    const storedAchievements = JSON.parse(localStorage.getItem('achievements')) || [];
+    
+    setTasks(storedTasks);
+    setLevel(storedLevel);
+    setXp(storedXp);
+    setTotalXp(storedTotalXp);
+    setStreak(storedStreak);
+    setAchievements(storedAchievements);
+  }, []);
+
+  useEffect(() => {
+    // Save data to local storage
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+    localStorage.setItem('level', level.toString());
+    localStorage.setItem('xp', xp.toString());
+    localStorage.setItem('totalXp', totalXp.toString());
+    localStorage.setItem('streak', streak.toString());
+    localStorage.setItem('achievements', JSON.stringify(achievements));
+  }, [tasks, level, xp, totalXp, streak, achievements]);
+
+  const addTask = () => {
+    if (taskTitle && deadline) {
+      const newTask = {
+        id: uuidv4(),
+        title: taskTitle,
+        deadline,
+        category,
+        priority,
+        completed: false,
+        createdAt: new Date().toISOString(),
+      };
+      setTasks([...tasks, newTask]);
+      setTaskTitle('');
+      setDeadline('');
+      setCategory('personal');
+      setPriority('medium');
+    }
+  };
+
+  const completeTask = (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === id ? { ...task, completed: true, completedAt: new Date().toISOString() } : task
+      )
+    );
+
+    // Calculate XP based on priority and deadline
+    let baseXp = 10;
+    const priorityBonus = { high: 15, medium: 10, low: 5 };
+    const earnedXp = priorityBonus[task.priority] || baseXp;
+    
+    // Bonus for completing early
+    const now = new Date();
+    const dueDate = new Date(task.deadline);
+    const earlyBonus = now < dueDate ? 5 : 0;
+    
+    const totalEarnedXp = earnedXp + earlyBonus;
+    const newXp = xp + totalEarnedXp;
+    const newTotalXp = totalXp + totalEarnedXp;
+    
+    setXp(newXp);
+    setTotalXp(newTotalXp);
+    
+    // Check for level up
+    const xpNeeded = level * 50;
+    if (newXp >= xpNeeded) {
+      setLevel(level + 1);
+      setXp(newXp - xpNeeded);
+      checkAchievements(level + 1, newTotalXp);
+    }
+    
+    // Update streak
+    updateStreak();
+  };
+
+  const deleteTask = (id) => {
+    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== id));
+  };
+
+  const editTask = (id, updates) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === id ? { ...task, ...updates } : task
+      )
+    );
+  };
+
+  const updateStreak = () => {
+    const today = new Date().toDateString();
+    const completedToday = tasks.filter(task => 
+      task.completed && 
+      task.completedAt && 
+      new Date(task.completedAt).toDateString() === today
+    ).length;
+    
+    if (completedToday >= dailyGoal) {
+      setStreak(prev => prev + 1);
+    }
+  };
+
+  const checkAchievements = (currentLevel, currentTotalXp) => {
+    const newAchievements = [];
+    
+    // Level achievements
+    if (currentLevel === 5 && !achievements.includes('level5')) {
+      newAchievements.push('level5');
+    }
+    if (currentLevel === 10 && !achievements.includes('level10')) {
+      newAchievements.push('level10');
+    }
+    
+    // XP achievements
+    if (currentTotalXp >= 1000 && !achievements.includes('xp1000')) {
+      newAchievements.push('xp1000');
+    }
+    
+    // Streak achievements
+    if (streak >= 7 && !achievements.includes('week_streak')) {
+      newAchievements.push('week_streak');
+    }
+    
+    if (newAchievements.length > 0) {
+      setAchievements(prev => [...prev, ...newAchievements]);
+    }
+  };
+
+  // Filter tasks based on selected filter
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'all') return true;
+    if (filter === 'completed') return task.completed;
+    if (filter === 'pending') return !task.completed;
+    if (filter === 'overdue') return isPast(parseISO(task.deadline)) && !task.completed;
+    return task.category === filter;
+  });
+
+  // Calculate daily progress
+  const today = new Date().toDateString();
+  const completedToday = tasks.filter(task => 
+    task.completed && 
+    task.completedAt && 
+    new Date(task.completedAt).toDateString() === today
+  ).length;
+
+  const dailyProgress = Math.min((completedToday / dailyGoal) * 100, 100);
+
+  return (
+    <div className="widget-container">
+      <div className="level-header">
+        <div className="level-info">
+          <div className="level-badge">Level {level}</div>
+          <div className="streak-badge">🔥 {streak} day streak</div>
+        </div>
+        <div className="xp-bar">
+          <div className="xp-fill" style={{ width: `${(xp / (level * 50)) * 100}%` }}></div>
+        </div>
+        <div className="xp-text">{xp}/{level * 50} XP</div>
+        <button className="stats-btn" onClick={() => setShowStats(!showStats)}>
+          📊
+        </button>
+      </div>
+
+      {showStats && (
+        <div className="stats-panel">
+          <div className="stat-item">
+            <span>Daily Progress:</span>
+            <div className="daily-progress">
+              <div className="daily-fill" style={{ width: `${dailyProgress}%` }}></div>
+              <span>{completedToday}/{dailyGoal}</span>
+            </div>
+          </div>
+          <div className="stat-item">
+            <span>Total XP:</span>
+            <span>{totalXp}</span>
+          </div>
+          <div className="stat-item">
+            <span>Tasks Completed:</span>
+            <span>{tasks.filter(t => t.completed).length}</span>
+          </div>
+          <div className="achievements">
+            <span>Achievements:</span>
+            <div className="achievement-badges">
+              {achievements.map(achievement => (
+                <span key={achievement} className="achievement-badge">
+                  {achievement === 'level5' && '🏆'}
+                  {achievement === 'level10' && '👑'}
+                  {achievement === 'xp1000' && '💎'}
+                  {achievement === 'week_streak' && '🔥'}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="task-input-container">
+        <input
+          type="text"
+          className="task-input"
+          placeholder="Task Title"
+          value={taskTitle}
+          onChange={(e) => setTaskTitle(e.target.value)}
+        />
+        <div className="input-row">
+          <input
+            type="date"
+            className="task-input date-input"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+          />
+          <select 
+            className="task-input"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="personal">👤 Personal</option>
+            <option value="work">💼 Work</option>
+            <option value="health">🏥 Health</option>
+            <option value="learning">📚 Learning</option>
+          </select>
+          <select 
+            className="task-input"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+          >
+            <option value="low">🟢 Low</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="high">🔴 High</option>
+          </select>
+        </div>
+        <button className="add-task-btn" onClick={addTask}>Add Task</button>
+      </div>
+
+      <div className="filter-container">
+        <button 
+          className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+          onClick={() => setFilter('all')}
+        >
+          All ({tasks.length})
+        </button>
+        <button 
+          className={`filter-btn ${filter === 'pending' ? 'active' : ''}`}
+          onClick={() => setFilter('pending')}
+        >
+          Pending ({tasks.filter(t => !t.completed).length})
+        </button>
+        <button 
+          className={`filter-btn ${filter === 'completed' ? 'active' : ''}`}
+          onClick={() => setFilter('completed')}
+        >
+          Done ({tasks.filter(t => t.completed).length})
+        </button>
+        <button 
+          className={`filter-btn ${filter === 'overdue' ? 'active' : ''}`}
+          onClick={() => setFilter('overdue')}
+        >
+          Overdue ({tasks.filter(t => isPast(parseISO(t.deadline)) && !t.completed).length})
+        </button>
+      </div>
+
+      <div className="task-list">
+        {filteredTasks.map((task) => (
+          <Task
+            key={task.id}
+            task={task}
+            completeTask={completeTask}
+            deleteTask={deleteTask}
+            editTask={editTask}
+          />
+        ))}
+        {filteredTasks.length === 0 && (
+          <div className="empty-state">
+            {filter === 'all' ? '🎯 No tasks yet. Add your first task!' : 
+             filter === 'completed' ? '✅ No completed tasks yet.' :
+             filter === 'overdue' ? '🎉 No overdue tasks!' :
+             '📝 No pending tasks.'}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;
+

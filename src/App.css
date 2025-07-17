@@ -1,0 +1,136 @@
+.widget-container {
+  width: 350px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
+.level-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 15px;
+  text-align: center;
+  position: relative;
+}
+
+.level-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.level-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 14px;
+  backdrop-filter: blur(10px);
+}
+
+.streak-badge {
+  background: rgba(255, 152, 0, 0.2);
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.xp-bar {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.xp-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #00c9ff, #92fe9d);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(0, 201, 255, 0.3);
+}
+
+.xp-text {
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stats-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s ease;
+}
+
+.stats-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.task-input-container {
+  display: flex;
+  padding: 10px;
+}
+
+.task-input {
+  flex: 1;
+  padding: 5px;
+  margin-right: 5px;
+}
+
+.add-task-btn {
+  padding: 5px 10px;
+  background-color: #6200ea;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.task-list {
+  padding: 10px;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.task-title {
+  font-size: 16px;
+}
+
+.task-deadline {
+  font-size: 12px;
+  color: #999;
+}
+
+.task-actions button {
+  margin-left: 5px;
+}
+
+.completed .task-title {
+  text-decoration: line-through;
+  color: #aaa;
+}

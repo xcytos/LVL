@@ -75,36 +75,73 @@ export default function LVLWidget() {
   const [dailyStreak, setDailyStreak] = useState(0);
   const [todayProgress, setTodayProgress] = useState(0);
 
-  // Load data from localStorage on component mount
+  // Enhanced data loading with automatic conversion for returning users
   useEffect(() => {
-    const storedTasks = localStorage.getItem('lvl-tasks');
-    if (storedTasks) {
-      setTasks(JSON.parse(storedTasks));
-    }
-
-    const storedLevel = localStorage.getItem('lvl-level');
-    if (storedLevel) {
-      setCurrentLevel(parseInt(storedLevel));
-    }
-
-    const storedXP = localStorage.getItem('lvl-xp');
-    if (storedXP) {
-      setCurrentXP(parseInt(storedXP));
-    }
-
-    const storedStreak = localStorage.getItem('lvl-streak');
-    if (storedStreak) {
-      setDailyStreak(parseInt(storedStreak));
-    }
+    const loadUserData = () => {
+      try {
+        // Check for existing data in localStorage
+        const storedTasks = localStorage.getItem('lvl-tasks');
+        const storedLevel = localStorage.getItem('lvl-level');
+        const storedXP = localStorage.getItem('lvl-xp');
+        const storedStreak = localStorage.getItem('lvl-streak');
+        const storedProgress = localStorage.getItem('lvl-progress');
+        
+        // If user has existing data, load it
+        if (storedTasks || storedLevel || storedXP || storedStreak) {
+          console.log('Found existing user data, converting settings...');
+          
+          if (storedTasks) {
+            const parsedTasks = JSON.parse(storedTasks);
+            setTasks(parsedTasks);
+          }
+          
+          if (storedLevel) {
+            setCurrentLevel(parseInt(storedLevel));
+          }
+          
+          if (storedXP) {
+            setCurrentXP(parseInt(storedXP));
+          }
+          
+          if (storedStreak) {
+            setDailyStreak(parseInt(storedStreak));
+          }
+          
+          if (storedProgress) {
+            setTodayProgress(parseInt(storedProgress));
+          }
+          
+          // Mark as converted user
+          localStorage.setItem('lvl-converted', 'true');
+        } else {
+          // New user - check if they want to load mock data
+          const isNewUser = !localStorage.getItem('lvl-converted');
+          if (isNewUser) {
+            console.log('New user detected, ready to load mock data if requested');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    
+    loadUserData();
   }, []);
 
-  // Save data to localStorage whenever tasks change
+  // Enhanced save data to localStorage whenever state changes
   useEffect(() => {
-    localStorage.setItem('lvl-tasks', JSON.stringify(tasks));
-    localStorage.setItem('lvl-level', currentLevel.toString());
-    localStorage.setItem('lvl-xp', currentXP.toString());
-    localStorage.setItem('lvl-streak', dailyStreak.toString());
-  }, [tasks, currentLevel, currentXP, dailyStreak]);
+    try {
+      localStorage.setItem('lvl-tasks', JSON.stringify(tasks));
+      localStorage.setItem('lvl-level', currentLevel.toString());
+      localStorage.setItem('lvl-xp', currentXP.toString());
+      localStorage.setItem('lvl-streak', dailyStreak.toString());
+      localStorage.setItem('lvl-progress', todayProgress.toString());
+      localStorage.setItem('lvl-next-xp', nextLevelXP.toString());
+      localStorage.setItem('lvl-last-save', new Date().toISOString());
+    } catch (error) {
+      console.error('Error saving data:', error);
+    }
+  }, [tasks, currentLevel, currentXP, dailyStreak, todayProgress, nextLevelXP]);
 
   const completedTasks = tasks.filter((task) => task.completed).length;
   const totalTasks = tasks.length;
@@ -122,9 +159,20 @@ export default function LVLWidget() {
     setSelectedPriority("");
   };
 
-  // Handle click outside to minimize
-  const handleClickOutside = () => {
-    if (currentView === "home" && !showSettings && !showAddTaskModal) {
+  // Handle click outside to minimize - prevent when settings or modals are open
+  const handleClickOutside = (e) => {
+    // Don't minimize if settings or modals are open
+    if (showSettings || showAddTaskModal) {
+      return;
+    }
+    
+    // Don't minimize if clicking on interactive elements
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
+      return;
+    }
+    
+    // Only minimize from home view
+    if (currentView === "home") {
       setIsMinimized(true);
     }
   };
@@ -209,16 +257,53 @@ export default function LVLWidget() {
     alert('All data has been reset! Starting fresh from Level 1.');
   };
 
-  // Backup data to JSON file
+  // Enhanced backup data to JSON file with efficient format
   const backupData = () => {
     const backupObject = {
-      tasks,
-      currentLevel,
-      currentXP,
-      nextLevelXP,
-      dailyStreak,
-      todayProgress,
+      userData: {
+        currentLevel,
+        currentXP,
+        nextLevelXP,
+        dailyStreak,
+        todayProgress,
+        totalTasksCompleted: tasks.filter(t => t.completed).length,
+        totalXPEarned: tasks.reduce((total, task) => total + (task.completed ? task.xp : 0), 0),
+        achievements: [
+          "first_task_completed",
+          "streak_week",
+          `level_up_${currentLevel}`,
+          "task_master"
+        ]
+      },
+      tasks: tasks.map(task => ({
+        ...task,
+        createdAt: task.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...(task.completed && { completedAt: task.completedAt || new Date().toISOString() })
+      })),
+      settings: {
+        theme: "dark",
+        notifications: true,
+        soundEnabled: true,
+        autoSave: true,
+        defaultCategory: "work",
+        defaultPriority: "medium"
+      },
+      statistics: {
+        totalTasksCreated: tasks.length,
+        totalTasksCompleted: tasks.filter(t => t.completed).length,
+        completionRate: tasks.length > 0 ? ((tasks.filter(t => t.completed).length / tasks.length) * 100).toFixed(1) : 0,
+        averageXPPerTask: tasks.length > 0 ? (tasks.reduce((total, task) => total + task.xp, 0) / tasks.length).toFixed(1) : 0,
+        mostActiveCategory: "work",
+        currentStreak: dailyStreak,
+        longestStreak: dailyStreak,
+        dailyGoal: 5,
+        weeklyGoal: 25,
+        monthlyGoal: 100
+      },
       exportDate: new Date().toISOString(),
+      version: "1.0.0",
+      author: "syedmuzamil"
     };
     
     const dataStr = JSON.stringify(backupObject, null, 2);
@@ -230,9 +315,11 @@ export default function LVLWidget() {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
+    
+    alert('Backup created successfully!');
   };
 
-  // Restore data from JSON file
+  // Enhanced restore data from JSON file with format detection
   const restoreData = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -241,16 +328,38 @@ export default function LVLWidget() {
         try {
           const backupData = JSON.parse(e.target.result);
           
-          if (backupData.tasks) setTasks(backupData.tasks);
-          if (backupData.currentLevel) setCurrentLevel(backupData.currentLevel);
-          if (backupData.currentXP) setCurrentXP(backupData.currentXP);
-          if (backupData.nextLevelXP) setNextLevelXP(backupData.nextLevelXP);
-          if (backupData.dailyStreak) setDailyStreak(backupData.dailyStreak);
-          if (backupData.todayProgress) setTodayProgress(backupData.todayProgress);
+          // Handle new format (with userData object)
+          if (backupData.userData && backupData.tasks) {
+            setTasks(backupData.tasks);
+            setCurrentLevel(backupData.userData.currentLevel || 1);
+            setCurrentXP(backupData.userData.currentXP || 0);
+            setNextLevelXP(backupData.userData.nextLevelXP || 100);
+            setDailyStreak(backupData.userData.dailyStreak || 0);
+            setTodayProgress(backupData.userData.todayProgress || 0);
+          }
+          // Handle old format (direct properties)
+          else if (backupData.tasks) {
+            setTasks(backupData.tasks);
+            if (backupData.currentLevel) setCurrentLevel(backupData.currentLevel);
+            if (backupData.currentXP) setCurrentXP(backupData.currentXP);
+            if (backupData.nextLevelXP) setNextLevelXP(backupData.nextLevelXP);
+            if (backupData.dailyStreak) setDailyStreak(backupData.dailyStreak);
+            if (backupData.todayProgress) setTodayProgress(backupData.todayProgress);
+          }
           
-          alert('Data restored successfully!');
+          // Reset the file input
+          event.target.value = '';
+          
+          alert('Data restored successfully! The app will reload automatically.');
+          
+          // Reload the app to ensure all changes take effect
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+          
         } catch (error) {
-          alert('Error restoring data: Invalid backup file');
+          console.error('Restore error:', error);
+          alert('Error restoring data: Invalid backup file format');
         }
       };
       reader.readAsText(file);
@@ -259,9 +368,9 @@ export default function LVLWidget() {
 
   // Banner view component - compact task display
   const BannerView = () => (
-    <div className="w-full max-w-md mx-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="w-full max-w-md mx-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white rounded-2xl shadow-2xl overflow-hidden max-h-[600px] flex flex-col">
       {/* Compact header */}
-      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 p-3 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 p-3 relative overflow-hidden flex-shrink-0">
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative z-10">
           <div className="flex items-center justify-between">
@@ -293,8 +402,8 @@ export default function LVLWidget() {
         </div>
       </div>
 
-      {/* Tasks only */}
-      <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+      {/* Tasks only - scrollable */}
+      <div className="p-3 space-y-3 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
         {filteredTasks.map((task) => {
           const CategoryIcon = categoryIcons[task.category];
           return (
@@ -304,7 +413,7 @@ export default function LVLWidget() {
                 task.completed ? "opacity-60" : ""
               }`}
             >
-              <CardContent className="p-2">
+              <CardContent className="p-3">
                 <div className="flex items-center gap-2">
                   <button onClick={() => toggleTask(task.id)} className="flex-shrink-0">
                     {task.completed ? (
@@ -315,25 +424,30 @@ export default function LVLWidget() {
                   </button>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <CategoryIcon className="w-3 h-3 text-gray-300" />
-                      <h3
-                        className={`text-sm font-medium truncate ${
-                          task.completed ? "line-through text-gray-400" : "text-white"
-                        }`}
-                      >
-                        {task.title}
-                      </h3>
-                      <Badge variant="outline" className={`text-xs ${priorityColors[task.priority]} font-medium`}>
-                        {task.priority}
-                      </Badge>
-                      <div className="flex items-center gap-1 text-yellow-400">
-                        <Star className="w-3 h-3 fill-current" />
-                        <span className="text-xs font-medium">{task.xp}</span>
+                    <div className="flex items-start gap-2">
+                      <CategoryIcon className="w-3 h-3 text-gray-300 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h3
+                          className={`text-sm font-medium break-words ${
+                            task.completed ? "line-through text-gray-400" : "text-white"
+                          }`}
+                          style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                        >
+                          {task.title}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <Badge variant="outline" className={`text-xs ${priorityColors[task.priority]} font-medium flex-shrink-0`}>
+                            {task.priority}
+                          </Badge>
+                          <div className="flex items-center gap-1 text-yellow-400 flex-shrink-0">
+                            <Star className="w-3 h-3 fill-current" />
+                            <span className="text-xs font-medium">{task.xp}</span>
+                          </div>
+                        </div>
                       </div>
                       <button
                         onClick={() => deleteTask(task.id)}
-                        className="ml-auto w-6 h-6 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-full flex items-center justify-center transition-all duration-200"
+                        className="w-6 h-6 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-full flex items-center justify-center transition-all duration-200 flex-shrink-0"
                         title="Delete task"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -359,9 +473,9 @@ export default function LVLWidget() {
 
   // Minimized view - only tasks
   const MinimizedView = () => (
-    <div className="w-full max-w-sm mx-auto bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-gray-700/50">
+    <div className="w-full max-w-sm mx-auto bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-gray-700/50 max-h-[400px] flex flex-col">
       {/* Minimal header */}
-      <div className="bg-gradient-to-r from-purple-600/80 via-blue-600/80 to-cyan-600/80 p-2 relative">
+      <div className="bg-gradient-to-r from-purple-600/80 via-blue-600/80 to-cyan-600/80 p-2 relative flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
@@ -390,14 +504,14 @@ export default function LVLWidget() {
         </div>
       </div>
 
-      {/* Tasks only */}
-      <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
+      {/* Tasks only - scrollable */}
+      <div className="p-3 space-y-3 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
         {filteredTasks.slice(0, 5).map((task) => {
           const CategoryIcon = categoryIcons[task.category];
           return (
             <div
               key={task.id}
-              className={`p-2 rounded-lg bg-gradient-to-r ${categoryColors[task.category]}/5 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-200 ${
+              className={`p-3 rounded-lg bg-gradient-to-r ${categoryColors[task.category]}/5 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-200 ${
                 task.completed ? "opacity-60" : ""
               }`}
             >
@@ -413,13 +527,17 @@ export default function LVLWidget() {
                 <CategoryIcon className="w-3 h-3 text-gray-300" />
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm font-medium truncate ${
-                      task.completed ? "line-through text-gray-400" : "text-white"
-                    }`}>
-                      {task.title}
-                    </span>
-                    <div className="flex items-center gap-1 text-yellow-400">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm font-medium break-words ${
+                        task.completed ? "line-through text-gray-400" : "text-white"
+                      }`}
+                      style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                      >
+                        {task.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-yellow-400 flex-shrink-0">
                       <Star className="w-3 h-3 fill-current" />
                       <span className="text-xs">{task.xp}</span>
                     </div>
@@ -456,21 +574,31 @@ export default function LVLWidget() {
   // Add Task Modal component
   const AddTaskModal = () => (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-2xl p-6 w-80 max-w-md mx-4 shadow-2xl">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-gray-800 rounded-2xl p-6 w-80 max-w-md mx-4 shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Plus className="w-5 h-5" />
             Add New Task
           </h2>
-          <button 
-            onClick={closeAddTaskModal}
-            className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={closeAddTaskModal}
+              className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={closeAddTaskModal}
+              className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {/* Task Title Input */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Task Title</label>
@@ -539,19 +667,9 @@ export default function LVLWidget() {
 
   // Home view component - full interface
   const HomeView = () => (
-    <div className="w-full max-w-md mx-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white rounded-2xl shadow-2xl overflow-hidden">
-      {/* Back button */}
-      <div className="absolute top-4 left-4 z-50">
-        <button 
-          onClick={() => setCurrentView("banner")}
-          className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-white/30 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 text-white" />
-        </button>
-      </div>
-
+    <div className="w-full max-w-md mx-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white rounded-2xl shadow-2xl overflow-hidden max-h-[600px] flex flex-col">
       {/* Header with Level Info */}
-      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 p-6 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 p-6 relative overflow-hidden flex-shrink-0">
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
@@ -572,6 +690,16 @@ export default function LVLWidget() {
                 <span className="font-semibold">{dailyStreak}</span>
               </div>
               <p className="text-xs text-white/70">day streak</p>
+            </div>
+            
+            <div className="absolute top-2 left-2 flex gap-1">
+              <button 
+                onClick={() => setCurrentView("banner")}
+                className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-white/30 transition-colors"
+                title="Back to Banner"
+              >
+                <ArrowLeft className="w-3 h-3" />
+              </button>
             </div>
             
             <div className="absolute top-2 right-2 flex gap-1">
@@ -601,6 +729,9 @@ export default function LVLWidget() {
           </div>
         </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
 
       {/* Stats Cards */}
       <div className="p-4 grid grid-cols-3 gap-3">
@@ -642,21 +773,101 @@ export default function LVLWidget() {
 
       {/* Filter */}
       <div className="p-4 bg-gray-800/30 border-t border-gray-700">
-        <div className="flex gap-2">
-          <Select value={filter} onValueChange={setFilter}>
-            <option value="all">All Tasks</option>
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-            <option value="work">Work</option>
-            <option value="personal">Personal</option>
-            <option value="health">Health</option>
-            <option value="learning">Learning</option>
-          </Select>
+        <div className="space-y-3">
+          {/* Category Filter Buttons */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Filter by Category</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilter("all")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                  filter === "all" 
+                    ? "bg-white text-gray-900 shadow-md" 
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilter("work")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                  filter === "work" 
+                    ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md" 
+                    : "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-300 hover:from-blue-500/30 hover:to-cyan-500/30"
+                }`}
+              >
+                <Briefcase className="w-3 h-3" />
+                Work
+              </button>
+              <button
+                onClick={() => setFilter("personal")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                  filter === "personal" 
+                    ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md" 
+                    : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30"
+                }`}
+              >
+                <User className="w-3 h-3" />
+                Personal
+              </button>
+              <button
+                onClick={() => setFilter("health")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                  filter === "health" 
+                    ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md" 
+                    : "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 hover:from-green-500/30 hover:to-emerald-500/30"
+                }`}
+              >
+                <Heart className="w-3 h-3" />
+                Health
+              </button>
+              <button
+                onClick={() => setFilter("learning")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                  filter === "learning" 
+                    ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-md" 
+                    : "bg-gradient-to-r from-orange-500/20 to-yellow-500/20 text-orange-300 hover:from-orange-500/30 hover:to-yellow-500/30"
+                }`}
+              >
+                <BookOpen className="w-3 h-3" />
+                Learning
+              </button>
+            </div>
+          </div>
+          
+          {/* Status Filter Buttons */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Filter by Status</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilter("pending")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                  filter === "pending" 
+                    ? "bg-yellow-500 text-white shadow-md" 
+                    : "bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30"
+                }`}
+              >
+                <Circle className="w-3 h-3" />
+                Pending
+              </button>
+              <button
+                onClick={() => setFilter("completed")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                  filter === "completed" 
+                    ? "bg-green-500 text-white shadow-md" 
+                    : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                Completed
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Tasks List */}
-      <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
+      <div className="p-4 space-y-3">
         {filteredTasks.map((task) => {
           const CategoryIcon = categoryIcons[task.category];
           return (
@@ -677,23 +888,26 @@ export default function LVLWidget() {
                   </button>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CategoryIcon className="w-4 h-4 text-gray-400" />
-                      <h3
-                        className={`font-medium truncate ${
-                          task.completed ? "line-through text-gray-500" : "text-white"
-                        }`}
-                      >
-                        {task.title}
-                      </h3>
+                    <div className="flex items-start gap-2 mb-2">
+                      <CategoryIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h3
+                          className={`font-medium break-words ${
+                            task.completed ? "line-through text-gray-500" : "text-white"
+                          }`}
+                          style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                        >
+                          {task.title}
+                        </h3>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={`text-xs ${priorityColors[task.priority]} font-medium`}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className={`text-xs ${priorityColors[task.priority]} font-medium flex-shrink-0`}>
                           {task.priority}
                         </Badge>
-                        <div className="flex items-center gap-1 text-yellow-400">
+                        <div className="flex items-center gap-1 text-yellow-400 flex-shrink-0">
                           <Star className="w-3 h-3 fill-current" />
                           <span className="text-xs font-medium">{task.xp} XP</span>
                         </div>
@@ -701,7 +915,7 @@ export default function LVLWidget() {
 
                       <button
                         onClick={() => deleteTask(task.id)}
-                        className="w-7 h-7 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-full flex items-center justify-center transition-all duration-200"
+                        className="w-7 h-7 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-full flex items-center justify-center transition-all duration-200 flex-shrink-0"
                         title="Delete task"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -749,25 +963,85 @@ export default function LVLWidget() {
           </Tooltip>
         </div>
       </div>
+      
+      </div>
+    </div>
+  );
 
-      {/* Settings Modal */}
+  // Enhanced load mock data function with app reload
+  const loadMockData = async () => {
+    try {
+      const response = await fetch('./mock-tasks-backup.json');
+      if (response.ok) {
+        const mockData = await response.json();
+        if (mockData.tasks) {
+          setTasks(mockData.tasks);
+          if (mockData.userData) {
+            setCurrentLevel(mockData.userData.currentLevel || 1);
+            setCurrentXP(mockData.userData.currentXP || 0);
+            setNextLevelXP(mockData.userData.nextLevelXP || 100);
+            setDailyStreak(mockData.userData.dailyStreak || 0);
+            setTodayProgress(mockData.userData.todayProgress || 0);
+          }
+          
+          // Mark as having data loaded
+          localStorage.setItem('lvl-converted', 'true');
+          
+          alert('Mock data loaded successfully! The app will reload to apply all changes.');
+          
+          // Reload the app to ensure all changes take effect
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }
+      } else {
+        throw new Error('Mock data file not found');
+      }
+    } catch (error) {
+      console.error('Error loading mock data:', error);
+      alert('Could not load mock data. Make sure the mock-tasks-backup.json file is available.');
+    }
+  };
+
+  return (
+    <TooltipProvider>
+      {isMinimized ? (
+        <MinimizedView />
+      ) : (
+        <div onClick={handleClickOutside}>
+          {currentView === "banner" ? <BannerView /> : <HomeView />}
+        </div>
+      )}
+      {showAddTaskModal && <AddTaskModal />}
+      
+      {/* Settings Modal - Independent */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-2xl p-6 w-80 max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-2xl p-6 w-80 max-w-md mx-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-6 flex-shrink-0">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <Settings className="w-5 h-5" />
                 Settings
               </h2>
-              <button 
-                onClick={() => setShowSettings(false)}
-                className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
+                  title="Back"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
               {/* Data Management */}
               <div className="bg-gray-700/50 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-gray-300 mb-3">Data Management</h3>
@@ -793,6 +1067,14 @@ export default function LVLWidget() {
                       Restore Data
                     </Button>
                   </div>
+                  
+                  <Button 
+                    onClick={loadMockData}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Star className="w-4 h-4 mr-2" />
+                    Load Mock Data
+                  </Button>
                   
                   <Button 
                     onClick={resetAllData}
@@ -832,31 +1114,18 @@ export default function LVLWidget() {
                 </div>
               </div>
 
-              {/* Fresh Start Info */}
-              <div className="bg-green-600/20 border border-green-600/30 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-green-300 mb-2">Fresh Start</h3>
-                <p className="text-xs text-green-200">
-                  Start adding tasks to begin your leveling journey! 
-                  Complete tasks to earn XP and level up.
+              {/* App Info */}
+              <div className="bg-blue-600/20 border border-blue-600/30 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-blue-300 mb-2">LVL Widget</h3>
+                <p className="text-xs text-blue-200">
+                  Version 1.0.0 by syedmuzamil<br/>
+                  Desktop task widget with leveling system
                 </p>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-
-  return (
-    <TooltipProvider>
-      {isMinimized ? (
-        <MinimizedView />
-      ) : (
-        <div onClick={handleClickOutside}>
-          {currentView === "banner" ? <BannerView /> : <HomeView />}
-        </div>
-      )}
-      {showAddTaskModal && <AddTaskModal />}
     </TooltipProvider>
   );
 }

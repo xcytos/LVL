@@ -2,7 +2,8 @@
   "name": "lvl-widget",
   "version": "1.0.0",
   "description": "Desktop task widget with leveling system",
-  "main": "public/electron.js",
+  "author": "syedmuzamil",
+  "main": "build/electron.js",
   "homepage": "./",
   "private": true,
   "scripts": {
@@ -14,7 +15,7 @@
     "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron-pack": "electron-builder",
     "preelectron-pack": "npm run build",
-    "postbuild": "copy public\\electron.js build\\"
+    "postbuild": "copy public\\electron.js build\\ && del build\\icon.ico 2>nul || echo Icon removed"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -60,13 +61,8 @@
       "node_modules/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico",
-      "sign": null
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "target": "portable"
     }
   }
 }
+

@@ -1,11 +1,30 @@
 const { app, BrowserWindow, screen, Tray, Menu, nativeImage } = require('electron');
-const isDev = require('electron-is-dev');
+// Force production mode
+process.env.NODE_ENV = 'production';
+const isDev = false; // Force production mode
 const path = require('path');
 const os = require('os');
 
 // Set app user data path to avoid permission issues
 const userDataPath = path.join(os.homedir(), 'AppData', 'Roaming', 'LVL-Widget');
 app.setPath('userData', userDataPath);
+
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  console.log('Another instance is already running. Exiting...');
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Someone tried to run a second instance, focus our window instead
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      mainWindow.show();
+    }
+  });
+}
 
 let mainWindow;
 let tray = null;
@@ -23,10 +42,10 @@ function createWindow() {
     x: width - 370, // Position on right side of screen
     y: 20,
     frame: false, // No window frame - pure widget
-    alwaysOnTop: true, // Keep always on top
+    alwaysOnTop: false, // Start on desktop level, not always on top
     resizable: false, // Fixed size widget
     transparent: true, // Allow transparency
-    backgroundColor: 'rgba(0,0,0,0)', // Transparent background
+    backgroundColor: 'rgba(0,0,0,0)', // Fully transparent background
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -34,16 +53,17 @@ function createWindow() {
       backgroundThrottling: false,
     },
     skipTaskbar: true, // Don't show in taskbar
-    show: false, // Hidden by default - only show via tray
+    show: false, // Will show after ready
     minimizable: false,
     maximizable: false,
     hasShadow: false, // No shadow for cleaner look
+    icon: path.join(__dirname, 'favicon.ico'), // Set window icon
   });
 
   // Load the app
   const loadURL = isDev
     ? 'http://localhost:3000'
-    : `file://${path.join(__dirname, '../build/index.html')}`;
+    : `file://${path.join(__dirname, 'index.html')}`;
   
   console.log('Loading URL:', loadURL);
   mainWindow.loadURL(loadURL);
@@ -57,15 +77,28 @@ function createWindow() {
     console.log('Content loaded successfully');
   });
 
-  // Show window when ready for debugging
+  // Window ready - show on desktop by default
   mainWindow.once('ready-to-show', () => {
-    console.log('LVL Widget ready - showing for debugging');
-    mainWindow.show(); // Force show for debugging
-    mainWindow.focus();
+    console.log('LVL Widget ready - showing on desktop');
+    mainWindow.show(); // Show on desktop by default
     
-    // Add drag functionality
+    // Add drag functionality and transparent background
     mainWindow.webContents.executeJavaScript(`
       document.addEventListener('DOMContentLoaded', function() {
+        // Make body and root completely transparent
+        document.body.style.backgroundColor = 'transparent';
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        
+        const root = document.getElementById('root');
+        if (root) {
+          root.style.backgroundColor = 'transparent';
+          root.style.margin = '0';
+          root.style.padding = '0';
+          root.style.minHeight = 'auto';
+        }
+        
+        // Find and setup the widget
         const widget = document.querySelector('.w-full.max-w-md.mx-auto') || document.body;
         let isDragging = false;
         let dragOffset = { x: 0, y: 0 };
@@ -89,11 +122,29 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
+function createTray() {
+  // Try to create tray with favicon.ico, fallback to icon.ico
+  let trayIconPath = path.join(__dirname, 'favicon.ico');
+  
+  try {
+    // Check if favicon.ico exists and is valid
+    if (require('fs').existsSync(trayIconPath)) {
+      tray = new Tray(trayIconPath);
+    } else {
+      // Fallback to icon.ico
+      trayIconPath = path.join(__dirname, 'icon.ico');
+      if (require('fs').existsSync(trayIconPath)) {
+        tray = new Tray(trayIconPath);
+      } else {
+        // Use default Electron icon
+        tray = new Tray(nativeImage.createEmpty());
+      }
+    }
+  } catch (error) {
+    console.error('Error creating tray icon:', error);
+    tray = new Tray(nativeImage.createEmpty());
+  }
 
-  // Add system tray icon
-  tray = new Tray(path.join(__dirname, 'icon.ico'));
   const contextMenu = Menu.buildFromTemplate([
     { 
       label: 'Show Widget', 
@@ -105,10 +156,14 @@ app.whenReady().then(() => {
       }
     },
     { 
-      label: 'Hide Widget', 
+      label: 'Toggle Overlay Mode', 
       click: () => {
         if (mainWindow) {
-          mainWindow.hide();
+          const isOnTop = mainWindow.isAlwaysOnTop();
+          mainWindow.setAlwaysOnTop(!isOnTop);
+          if (!isOnTop) {
+            mainWindow.focus();
+          }
         }
       }
     },
@@ -121,25 +176,31 @@ app.whenReady().then(() => {
       }
     }
   ]);
-  tray.setToolTip('LVL Widget - Click to toggle');
+  
+  tray.setToolTip('LVL Widget by syedmuzamil - Click to toggle overlay mode');
   tray.setContextMenu(contextMenu);
 
-  // Single click to toggle visibility
+  // Single click to toggle overlay mode (always on top)
   tray.on('click', () => {
     if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        mainWindow.show();
+      const isOnTop = mainWindow.isAlwaysOnTop();
+      mainWindow.setAlwaysOnTop(!isOnTop);
+      if (!isOnTop) {
         mainWindow.focus();
       }
     }
   });
+}
+
+app.whenReady().then(() => {
+  createWindow();
+  createTray();
   
   mainWindow.on('close', (e) => {
     if (!isQuiting) {
       e.preventDefault();
-      mainWindow.hide();
+      // Don't hide - just set to desktop level
+      mainWindow.setAlwaysOnTop(false);
     }
   });
 });
@@ -160,25 +221,30 @@ app.on('activate', () => {
   }
 });
 
-// Handle SIGINT and other signals properly
+// Handle SIGINT and other signals - don't quit, just log
 process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down gracefully...');
-  app.quit();
+  console.log('Received SIGINT, but continuing to run in system tray...');
+  // Don't quit - keep running in system tray
 });
 
 process.on('SIGTERM', () => {
-  console.log('Received SIGTERM, shutting down gracefully...');
-  app.quit();
+  console.log('Received SIGTERM, but continuing to run in system tray...');
+  // Don't quit - keep running in system tray
 });
 
-// Handle uncaught exceptions
+// Handle uncaught exceptions - log but don't quit
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  app.quit();
+  // Don't quit - keep running in system tray
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't quit - keep running in system tray
 });
 
+// Prevent multiple instances
+app.on('before-quit', () => {
+  isQuiting = true;
+});

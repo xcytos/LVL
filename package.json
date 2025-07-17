@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Desktop task widget with leveling system",
   "main": "public/electron.js",
+  "homepage": "./",
   "private": true,
   "scripts": {
     "start": "react-scripts start",
@@ -12,7 +13,8 @@
     "electron": "electron .",
     "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron-pack": "electron-builder",
-    "preelectron-pack": "npm run build"
+    "preelectron-pack": "npm run build",
+    "postbuild": "copy public\\electron.js build\\"
   },
   "dependencies": {
     "clsx": "^2.1.1",

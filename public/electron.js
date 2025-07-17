@@ -69,3 +69,25 @@ app.on('activate', () => {
     createWindow();
   }
 });
+
+// Handle SIGINT and other signals properly
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully...');
+  app.quit();
+});
+
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  app.quit();
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  app.quit();
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
